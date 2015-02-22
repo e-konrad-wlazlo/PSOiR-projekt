@@ -1,0 +1,16 @@
+extends layout
+
+block content
+  h1= "Image service"
+  p #{title}
+  
+  a(href="http://localhost:3000/addimage")= "Add image"
+  
+  p 
+  
+    h2.
+        File list
+    ul
+        each name in filenames
+            li
+            a(href="http://localhost:3000/inspect?name=" + name)= name

@@ -1,0 +1,221 @@
+#!/usr/bin/env node
+var debug = require('debug')('test2');
+var app = require('../app');
+var schedule = require('node-schedule');
+var AWS = require('aws-sdk');
+var AWS_CONFIG_PATH = './config.json';
+var SQS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/983680736795/maciejewskiSQS';
+var fs = require('fs');
+var Caman = require('caman').Caman;
+
+app.set('port', process.env.PORT || 3001);
+
+var j = schedule.scheduleJob('1 * * * *', function(){
+    console.log('The answer to life, the universe, and everything!');
+});
+   
+setInterval(funToExecuteAtInterval, 5000);  
+
+function funToExecuteAtInterval() {
+	console.log('Wywolano sprawdzenie SQS'); 
+	AWS.config.loadFromPath(AWS_CONFIG_PATH);
+	var sqs = new AWS.SQS();
+	var params = {
+			  QueueUrl: SQS_QUEUE_URL, /* required */
+			  MaxNumberOfMessages: 1,
+			  VisibilityTimeout: 2,
+			  WaitTimeSeconds: 0
+			};
+	var paramsCheckQueue = { // pobieramy parametry naszej kolejki
+			  QueueUrl: SQS_QUEUE_URL, /* required */
+			  AttributeNames: [
+			    'ApproximateNumberOfMessages',
+			    /* more items */
+			  ]
+			};
+	sqs.getQueueAttributes(paramsCheckQueue, function(err, data) {
+			  if (err) console.log(err, err.stack); // an error occurred
+			  else    
+				  if(data.Attributes.ApproximateNumberOfMessages == '0') // jesli parametr liczby wiadomosci wynosi 0, to wyswietl komunikat i nic nie rob
+					  {
+					  console.log("Brak komunikatów do obsłużenia");
+					  }
+				  else{ // jesli sa jakies komunikaty, to:
+						sqs.receiveMessage(params, function(err, data) {  // odbierz wiadomosc
+							  if (err) console.log(err, err.stack); // an error occurred
+							  else{
+								  console.log("Odebrany komunikat: " + data.Messages[0].Body); 
+								  var message = data.Messages[0].Body; // zapisz body komunikatu do zmiennej
+								  var messageHandle = data.Messages[0].ReceiptHandle; // zapisz receipthandle
+								  var dataToProcess = message.split("|");
+								  console.log(dataToProcess[0]); // nazwa pliku
+								  console.log(dataToProcess[1]); // nazwa akcji
+								  if(dataToProcess[1] == "deleteQueue") // jesli komunikat o usunieciu pliku
+									  {
+									  	console.log("Usuwanie pliku");
+									  	var paramsToDelete = {
+									  		  Bucket: 'piotrmaciejewski-images', /* required */
+									  		  Key: dataToProcess[0] /* required */
+									  		};
+									  	var s3 = new AWS.S3();
+									  	s3.deleteObject(paramsToDelete, function(err, data) {
+									  	  if (err) console.log(err, err.stack); // an error occurred
+									  	  else {
+									 		  console.log(data);
+									  		var paramsDeleteMsg = {
+									  			  QueueUrl: SQS_QUEUE_URL, /* required */
+									  			  ReceiptHandle: messageHandle /* required */
+									  			};
+									  			sqs.deleteMessage(paramsDeleteMsg, function(err, data) {
+									  			  if (err) console.log(err, err.stack); // an error occurred
+									  			  else     console.log(data);           // successful response
+									  			});
+									  	  }
+									  	});
+									  }
+								  else if(dataToProcess[1] == "changeBrighteness") // jesli komunikat o zmianie jasnosci
+									  {
+									  	console.log("Zmiana jasnosci");
+									  	
+									  	AWS.config.loadFromPath(AWS_CONFIG_PATH);
+										
+										var params = {
+												  Bucket: 'piotrmaciejewski-images', 
+												  Key: dataToProcess[0]
+												};
+										var S3 = new AWS.S3();
+										// pobierz obraz do zmodyfikowania
+										S3.getObject(params, function(err, data) {
+											if (err) console.log(err, err.stack);
+											else     {
+												fs.writeFile('./downloads/files_being_modified' + dataToProcess[0], data.Body, 'binary', function (err,data) {
+													  if (err) {
+														  console.log(err, err.stack);
+													  }
+													  else // jesli sie powiedzie:
+													  
+													  console.log("Pobrano plik");
+													  var subName = dataToProcess[0].substr(1); // skopiuj nazwe bez znaku "/" na poczatku
+														var newName = "(" + dataToProcess[1] + "-" + dataToProcess[2] + ")" + subName;
+														// zmodyfikuj obraz o podany parametr:
+														Caman("./downloads/files_being_modified" + dataToProcess[0], function () { // biblioteka Caman do podstawowych operacji na plikach graficznych
+															  this.brightness(dataToProcess[2]);
+															  this.render(function () {
+															  this.save("./downloads/files_being_modified/" + newName);
+															  });
+															  
+															  // wrzuc zmodyfikowany plik na s3
+															  var fileStream = fs.createReadStream('./downloads/files_being_modified/' + newName);
+																fileStream.on('error', function (err) {
+																  if (err) { throw err; }
+																});  
+																fileStream.on('open', function () {
+																 
+																  S3.putObject({
+																    Bucket: 'piotrmaciejewski-images',
+																    Key: '/'+newName,
+																    Body: fileStream
+																  }, function (err) {
+																    if (err) { throw err; }
+																    else // jesli sie powiedzie to
+																    	
+																    	// stworz loga w simpleDB - cos tu nie dziala
+																    	/*
+																    	var curDat = new Date();
+																    	var simpledb = new AWS.SimpleDB();
+																    	var paramsDB = {
+																    		  Attributes: [ 
+																    		    {
+																    		      Name: 'Date', 
+																    		      Value: curDat.toString() 
+																    		      //Replace: true || false
+																    		    },
+																    		    {
+																	    		  Name: 'Action',
+																	    		  Value: 'Brighteness changed'
+																    		    },
+																    		    {
+																		    		  Name: 'Parameter',
+																		    		  Value: dataToProcess[2]
+																	    		},
+																    		    {
+																		    		  Name: 'File',
+																		    		  Value: subName
+																	    		},
+																	    		{
+																		    		  Name: 'New File',
+																		    		  Value: newName
+																	    		},
+																    		    
+																    		  ],
+																    		  DomainName: 'TESTDB', 
+																    		  ItemName: newName 
+//																    		  Expected: {
+//																    		    Exists: true || false,
+//																    		    Name: 'STRING_VALUE',
+//																    		    Value: 'STRING_VALUE'
+//																    		  }
+																    		};
+																    		simpledb.putAttributes(paramsDB, function(err, data) {
+																    		  if (err) console.log(err, err.stack); // an error occurred
+																    		  else     console.log(data);           // successful response
+																    		});
+																    		var paramsGET = {
+																    				DomainName: 'TESTDB',
+																    				ItemName: newName
+																    		};
+																    		simpledb.getAttributes (paramsGET, function(err,data)
+																    				{
+																    			if (err) console.log(err);
+																    			else console.log(data);
+																    				});
+																    	*/
+																    	
+																    	//usun bazowy plik z s3
+																		S3.deleteObject(params, function(err, data) {
+																		  	  if (err) console.log(err, err.stack); // an error occurred
+																		  	  else {
+																		 		  console.log(data);
+																		 		  // usun komunikat z kolejki
+																		  		var paramsDeleteMsg = {
+																		  			  QueueUrl: SQS_QUEUE_URL, /* required */
+																		  			  ReceiptHandle: messageHandle /* required */
+																		  			};
+																		  			sqs.deleteMessage(paramsDeleteMsg, function(err, data) {
+																		  			  if (err) console.log(err, err.stack); // an error occurred
+																		  			  else     console.log(data);           // successful response
+																		  			});
+																		  	  }
+																		  	});
+																    	
+																  });
+																});
+																
+															});
+														console.log("Obraz zmodyfikowano");
+												});
+
+												
+											}	
+										});
+										
+										
+										// usun bazowy plik z lokalnego folderu
+										//fs.unlink("./downloads/files_being_modified" + dataToProcess[0], function (err) {
+										//	  if (err) throw err;
+										//	});
+									  }
+							  }		  
+							});
+				  }
+			});
+	
+
+};
+
+var server = app.listen(app.get('port'), function() {
+  debug('Express server listening on port ' + server.address().port);
+  
+});
+
+

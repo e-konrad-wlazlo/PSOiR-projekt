@@ -1,0 +1,29 @@
+extends layout
+
+block content
+   h1= "Inspect file"
+      p #{file}
+      
+      body
+      p "Operations you can perform on this file"
+   
+      input#deleteButton(type="button",  onclick="location.href='http://localhost:3000/action?action=delete&name=#{file}'", value="Delete")
+      br
+      br
+      input#downlowadButton(type="button",  onclick="location.href='http://localhost:3000/action?action=download&name=#{file}'", value="Download")
+      br
+      br
+      input#deleteQueueButton(type="button",  onclick="location.href='http://localhost:3000/action?action=deleteQueue&name=#{file}'", value="deleteQueue")
+      br      
+      br
+      p "Change brighteness. Type an integer value and submit."
+      form(name="value1" ,action="http://localhost:3000/action", method='get')
+         input(type='hidden', name='action', value="changeBrighteness")
+         input(type='hidden', name='file', value="#{file}")
+         input(type='number', id="val", name='value', size='80')
+         input(type='submit', value='Submit')
+    
+    footer
+    
+      a(href="http://localhost:3000/start")= "Go back to main page"
+ 

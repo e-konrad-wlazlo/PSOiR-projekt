@@ -1,0 +1,41 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  background-color: white;
+}
+
+h1 {
+	color: #ee3e80;
+	font: 22px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+h2 {
+	color: #665544;
+	font: 18px "Lucida Grande", Helvetica, Arial, sans-serif;
+}	
+p {
+	color: #665544;
+	font: 12px "Lucida Grande", Helvetica, Arial, sans-serif;	
+}
+	
+a {
+  color: #00B7FF;
+}
+
+input, textarea, select, button {
+  width : 160px;
+  left : 20px;
+
+  -webkit-box-sizing: border-box; /* For legacy WebKit based browsers */
+     -moz-box-sizing: border-box; /* For all Gecko based browsers */
+          box-sizing: border-box;
+}
+
+
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 30px;
+  height: 70px;
+  background-color: white;
+  width: 100%;
+}

@@ -1,0 +1,31 @@
+extends layout
+
+block content
+
+    h1= title
+
+    body
+    
+    script(type='text/javascript').
+     function validateForm(){  
+     alert(document.forms["uploadForm"]["file"].value);
+       var x = 'aaafffbbb'
+       if (x.indexOf(".jpg") == -1)
+         return false;
+     }
+    
+    p Choose image to upload
+    br   
+    form(name="uploadForm", action="https://piotrmaciejewski-images.s3.amazonaws.com/", /*onsubmit="return validateForm()",*/ enctype='multipart/form-data', method='post')
+         input(type='hidden', name='key', value='/${filename}')
+         input(type='hidden', name='AWSAccessKeyId', value=awskeyid)
+         input(type='hidden', name='acl', value="private")
+         input(type='hidden', name='success_action_redirect', value="http://localhost:3000/start")
+         input(type='hidden', name='policy', value=policy)
+         input(type='hidden', name='signature', value=signature)
+         input(type='hidden', name='Content-Type', value="image/png")
+         input(type='file', name='file', size='80')
+         input(type='submit', value='save')
+            
+    footer
+         a(href="http://localhost:3000/start")= "Back to main page"  
